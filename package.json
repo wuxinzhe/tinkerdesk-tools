@@ -1,0 +1,14 @@
+{
+  "name": "tinkerdesk-tools",
+  "version": "1.0.0",
+  "description": "TinkerDesk tools monorepo —— 单仓库收录所有外置工具包。每个工具是独立 npm 包，通过 CI 自动发布（tinkerdesk-tool-<name>）。",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "license": "MIT",
+  "author": "Hermes Agent",
+  "scripts": {
+    "list": "ls packages"
+  }
+}
