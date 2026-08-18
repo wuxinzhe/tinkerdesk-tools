@@ -1,0 +1,31 @@
+{
+  "name": "tinkerdesk-tool-index-tts2",
+  "version": "0.0.1",
+  "description": "TinkerDesk 外置工具：index_tts——调用本机 IndexTTS2（IndexTTS-2.5）生成克隆语音（Agent 自主调用、全参数：语速/情感/五语/文本归一化）。",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "scripts/",
+    "manifest.json",
+    "install.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "verify": "node verify.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "tinkerdesk-tool",
+    "tts",
+    "voice",
+    "index-tts2",
+    "voice-clone"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  }
+}
