@@ -266,3 +266,36 @@ export async function execute(toolCall: ToolCall): Promise<ActionResult> {
     output: { filePath: wavPath, wavPath },
   }
 }
+
+// ══════════════════════════════════════════════════════════════
+// IAgentTool 导出（与内建同构——getSchema/execute/check 方法）
+// 新加载契约（ToolCenter）优先用 tool；兼容旧 { schema, execute }。
+// ══════════════════════════════════════════════════════════════
+const run = execute // 顶层 execute——tool.execute 委托它
+
+/** 实现 IAgentTool 的工具对象 */
+export const tool = {
+  getSchema(): Record<string, unknown> {
+    return {
+      name: schema.name,
+      description: schema.description,
+      parameters: schema.parameters,
+      toFunctionCallingFormat(): Record<string, unknown> {
+        return {
+          type: 'function',
+          function: { name: schema.name, description: schema.description, parameters: schema.parameters },
+        }
+      },
+    }
+  },
+  async execute(ctx: { toolCall?: { arguments?: Record<string, unknown> } }): Promise<{ async: boolean; result: string }> {
+    const r = await run({ arguments: ctx?.toolCall?.arguments ?? {} })
+    if (r.ok === false) {
+      return { async: false, result: JSON.stringify({ error: r.error ?? '工具执行失败' }) }
+    }
+    return { async: false, result: JSON.stringify(r.output ?? {}) }
+  },
+  check(): boolean {
+    return true
+  },
+}
