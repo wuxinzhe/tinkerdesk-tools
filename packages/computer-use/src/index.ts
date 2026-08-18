@@ -456,3 +456,41 @@ function errMsg(e: unknown): string {
   }
   return String(e)
 }
+// ══════════════════════════════════════════════════════════════
+// IAgentTool 导出（与内建工具同构——getSchema/execute/check 方法）
+// 兼容旧 { schema, execute } 导出；新加载契约（ToolCenter）优先用 tool。
+// ├─ getSchema(): 返回 ToolSchema 兼容结构（含 toFunctionCallingFormat —— JS 弱类型结构一致即可）
+// ├─ execute(ctx): 返回 ToolResult 兼容结构 { async, result }
+// └─ check(): 可用性
+// ══════════════════════════════════════════════════════════════
+const run = execute // 顶层 execute（按 action 分发）——tool.execute 委托它
+
+/** 工具名 */
+const TOOL_NAME = 'computer_use'
+
+/** 实现 IAgentTool 的工具对象 */
+export const tool = {
+  getSchema(): Record<string, unknown> {
+    return {
+      name: schema.name,
+      description: schema.description,
+      parameters: schema.parameters,
+      toFunctionCallingFormat(): Record<string, unknown> {
+        return {
+          type: 'function',
+          function: { name: schema.name, description: schema.description, parameters: schema.parameters },
+        }
+      },
+    }
+  },
+  async execute(ctx: { toolCall?: { arguments?: Record<string, unknown> } }): Promise<{ async: boolean; result: string }> {
+    const r = await run({ arguments: ctx?.toolCall?.arguments ?? {} })
+    if (r.ok === false) {
+      return { async: false, result: JSON.stringify({ error: r.error ?? '工具执行失败', hint: r.hint }) }
+    }
+    return { async: false, result: r.output ?? JSON.stringify(r) }
+  },
+  check(): boolean {
+    return true
+  },
+}
