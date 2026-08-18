@@ -49,6 +49,10 @@ jobs:
               echo "   → $NAME@$NEW")
           done < /tmp/changed.txt
 
+      # 装依赖（TS 包 prepublishOnly 需要 tsc——workspaces 根安装）
+      - name: Install dependencies
+        run: npm install
+
       # 逐个发布（基于 npm 已发布 latest 递增——不发回购仓 version）
       - name: Publish changed packages
         env:
