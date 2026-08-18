@@ -1,6 +1,6 @@
 // smoke-e2e.js — real end-to-end synthesis via dist/index.js (requires local IndexTTS env)
 const t = require('./dist/index.js');
-const ref = 'C:/Users/Administrator/Documents/tinkerdesk-ecosystem/tinkerdesk-plugins/packages/index-tts2/emo_test.wav';
+const ref = 'C:/Users/Administrator/Documents/tinkerdesk-ecosystem/tinkerdesk-providers/packages/index-tts2/emo_test.wav';
 const out = 'C:/Users/Administrator/AppData/Local/Temp/indextts-e2e-test.wav';
 const started = Date.now();
 t.execute({
