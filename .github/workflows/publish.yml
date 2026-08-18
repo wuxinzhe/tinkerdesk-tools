@@ -45,8 +45,9 @@ jobs:
               NAME=$(node -p "require('./package.json').name") && \
               LATEST=$(npm view "$NAME" version 2>/dev/null || echo "0.0.0") && \
               NEW=$(node -e "const s='$LATEST'.split('.').map(Number); console.log([s[0],s[1],(s[2]||0)+1].join('.'))") && \
-              npm version "$NEW" --no-git-tag-version && \
-              echo "   → $NAME@$NEW")
+              CUR=$(node -p "require('./package.json').version") && \
+              if [ "$NEW" != "$CUR" ]; then npm version "$NEW" --no-git-tag-version; fi && \
+              echo "   → $NAME@$(node -p "require('./package.json').version")")
           done < /tmp/changed.txt
 
       # 装依赖（TS 包 prepublishOnly 需要 tsc——workspaces 根安装）

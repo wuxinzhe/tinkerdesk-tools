@@ -1,6 +1,6 @@
 # tinkerdesk-tool-index-tts2
 
-TinkerDesk 外置工具：**index_tts** —— 调用本机 **IndexTTS2（IndexTTS-2.5）** 生成克隆语音（[IndexTTS](https://github.com/index-tts/index-tts) 零样本 TTS：一段参考音频即克隆音色，支持中/英/日/西/阿五语）。
+TinkerDesk 外置工具：**index_tts** —— 调用本机 **IndexTTS2（IndexTTS-2.5）** 生成克隆语音（[IndexTTS](https://github.com/index-tts/index-tts) 零样本 TTS：一段参考音频即克隆音色，支持中/英/日/西/阿五语）。由 tinkerdesk-tools monorepo CI 自动发布。
 
 - 完整工具形态（Agent 自主调用、全参数）：`dist/index.js` 导出 `{ schema, execute }`
 - 参数：文本 / 语言 / 语速（durationFactor 0.5-2.0）/ 情感（音频参考 or 8 向量预设）/ 文本归一化 / 分段静音 / 随机采样 / BF16 / 输出路径 / 参考音色
