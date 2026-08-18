@@ -1,5 +1,5 @@
 /**
- * index.js — TinkerDesk 外置完整工具：computer_use
+ * index.ts — TinkerDesk 外置完整工具：computer_use
  *
  * 迁移自 tinkerdesk/src/main/tools/computer-use/computer-use-tool.ts（功能 1:1）。
  * 自包含 Node 模块——不依赖 TinkerDesk 内部 BaseTool / ToolContext / ToolResult，仅用标准库。
@@ -19,21 +19,20 @@
  *   - 硬封锁：危险按键组合（清废纸篓/锁屏/登出等）+ 危险文本模式（curl|bash/sudo rm -rf/fork bomb）
  */
 
-'use strict'
-
-const {
+import {
   CuaDriverClient,
   CuaDriverUnavailableError,
-} = require('./lib/cua-driver-client')
-const {
+} from './lib/cua-driver-client'
+import type { MCPToolResult } from './lib/cua-driver-client'
+import {
   COMPUTER_USE_ACTIONS,
   COMPUTER_USE_BLOCKED_KEY_COMBOS,
   canonKeyCombo,
   blockedTypePattern,
-} = require('./lib/schema')
+} from './lib/schema'
 
 /** typed browser action → cua-driver 工具名 */
-const ACTION_TO_BROWSER_TOOL = {
+const ACTION_TO_BROWSER_TOOL: Record<string, string> = {
   cua_browser_navigate: 'browser_navigate',
   cua_browser_click: 'browser_click',
   cua_browser_type: 'browser_type',
@@ -44,7 +43,7 @@ const ACTION_TO_BROWSER_TOOL = {
 }
 
 /** cua-driver typed browser 工具名 → 白名单字段（_dispatch） */
-const BROWSER_ALLOWED_FIELDS = {
+const BROWSER_ALLOWED_FIELDS: Record<string, string[]> = {
   browser_navigate: ['url'],
   browser_click: ['ref', 'input_route', 'x', 'y'],
   browser_type: ['ref', 'text'],
@@ -55,7 +54,7 @@ const BROWSER_ALLOWED_FIELDS = {
 }
 
 /** 工具 schema（OpenAI function calling 结构——含 actions 数组） */
-const schema = {
+export const schema = {
   name: 'computer_use',
   description:
     '截屏 + 鼠标/键盘/拖拽 + 应用窗口 + 浏览器自动化控制计算机桌面（基于 cua-driver）。单工具 + action 判别（24 类动作）。',
@@ -74,19 +73,43 @@ const schema = {
   },
 }
 
+/** execute 入参（工具调用参数袋——宽松任意字段） */
+export interface ToolCallArgumentBag {
+  [key: string]: any
+}
+
+/** execute 入参（兼容 { arguments } 包装或直接 args 对象） */
+export type ToolCall =
+  | { arguments?: Record<string, unknown> }
+  | Record<string, unknown>
+
+/** execute 统一返回 */
+export interface ActionResult {
+  ok: boolean
+  output?: string
+  error?: string
+  hint?: string
+}
+
+/** 窗口信息（list_windows 解析结果） */
+export interface WindowInfo {
+  name: string
+  pid: number
+  windowId: number
+}
+
 /**
  * execute — 按 action 分发调用 cua-driver client，返回统一结果对象。
- * @param {{arguments?: Record<string, unknown>} | Record<string, unknown>} toolCall
- * @returns {Promise<{ok: boolean, output?: string, error?: string}>}
  */
-async function execute(toolCall) {
-  const t = toolCall && toolCall.arguments && typeof toolCall.arguments === 'object'
-    ? toolCall.arguments
-    : (toolCall || {})
-  const args = t
+export async function execute(toolCall: ToolCall): Promise<ActionResult> {
+  const t =
+    toolCall && toolCall.arguments && typeof toolCall.arguments === 'object'
+      ? toolCall.arguments
+      : (toolCall || {})
+  const args: ToolCallArgumentBag = t as ToolCallArgumentBag
 
   const action = String(args.action || '').trim().toLowerCase()
-  if (!action || !COMPUTER_USE_ACTIONS.includes(action)) {
+  if (!action || !(COMPUTER_USE_ACTIONS as readonly string[]).includes(action)) {
     return { ok: false, error: `missing or unknown action: ${action || '(empty)'}` }
   }
 
@@ -118,15 +141,14 @@ async function execute(toolCall) {
   }
 
   // ── 后端（cua-driver） ──
-  let client
+  const client = new CuaDriverClient()
   try {
-    client = new CuaDriverClient()
     await client.start()
     await client.startSession()
   } catch (e) {
     return {
       ok: false,
-      error: `computer_use backend unavailable: ${(e && e.message) || String(e)}`,
+      error: `computer_use backend unavailable: ${errMsg(e)}`,
       hint: '安装 cua-driver：PowerShell 执行 irm https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.ps1 | iex',
     }
   }
@@ -138,7 +160,7 @@ async function execute(toolCall) {
     if (e instanceof CuaDriverUnavailableError) {
       return { ok: false, error: e.message }
     }
-    return { ok: false, error: `${action} failed: ${(e && e.message) || String(e)}` }
+    return { ok: false, error: `${action} failed: ${errMsg(e)}` }
   } finally {
     // 会话级隔离由宿主管理；这里每个 execute 独立启停子进程，防止资源泄漏
     try { client.stop() } catch { /* ignore */ }
@@ -146,7 +168,7 @@ async function execute(toolCall) {
 }
 
 /** action 分发（_dispatch——参数组装 1:1） */
-async function dispatch(client, action, args) {
+async function dispatch(client: CuaDriverClient, action: string, args: ToolCallArgumentBag): Promise<string> {
   const captureAfter = Boolean(args.capture_after)
 
   switch (action) {
@@ -208,7 +230,7 @@ async function dispatch(client, action, args) {
     }
 
     case 'cua_browser_state': {
-      const stateArgs = {}
+      const stateArgs: ToolCallArgumentBag = {}
       for (const k of ['pid', 'window_id', 'tab_id', 'snapshot_format', 'query', 'scope_ref', 'continuation']) {
         if (args[k] !== undefined) stateArgs[k] = args[k]
       }
@@ -230,7 +252,7 @@ async function dispatch(client, action, args) {
     default: {
       const browserTool = ACTION_TO_BROWSER_TOOL[action]
       if (browserTool) {
-        const callArgs = {}
+        const callArgs: ToolCallArgumentBag = {}
         for (const field of BROWSER_ALLOWED_FIELDS[browserTool]) {
           if (args[field] !== undefined) callArgs[field] = args[field]
         }
@@ -253,10 +275,18 @@ async function dispatch(client, action, args) {
 }
 
 /** 输入类 action（click 系列/drag/scroll/type/key/set_value）——_dispatch 尾部 */
-async function dispatchInput(client, action, args, captureAfter) {
+async function dispatchInput(
+  client: CuaDriverClient,
+  action: string,
+  args: ToolCallArgumentBag,
+  captureAfter: boolean
+): Promise<string> {
   const deliveryMode = args.delivery_mode
   const bringToFront = Boolean(args.bring_to_front)
-  const coord = Array.isArray(args.coordinate) && args.coordinate.length === 2 ? args.coordinate : null
+  const coord: [number, number] | null =
+    Array.isArray(args.coordinate) && args.coordinate.length === 2
+      ? (args.coordinate as [number, number])
+      : null
 
   if (action === 'click' || action === 'double_click' || action === 'right_click' || action === 'middle_click') {
     let button = String(args.button || '')
@@ -342,10 +372,10 @@ async function dispatchInput(client, action, args, captureAfter) {
 }
 
 /** 解析 list_windows 文本输出 → 窗口列表（name/pid/windowId）——宽松逐行解析（格式有变体） */
-async function listWindowsParsed(client) {
+async function listWindowsParsed(client: CuaDriverClient): Promise<WindowInfo[]> {
   const res = await client.callTool('list_windows', {})
   const text = client.extractText(res)
-  const out = []
+  const out: WindowInfo[] = []
   for (const line of text.split('\n')) {
     if (!line.includes('window_id')) continue
     const nameM = /"([^"]+)"/.exec(line)
@@ -367,20 +397,21 @@ async function listWindowsParsed(client) {
  * capture 返回：AX 树文本为主（含 [N] 编号——模型可直接点击）。
  * 图像 base64 不返回（会撑爆上下文）。未来接入视觉模型时按模型能力返回 image_data_url。
  */
-function captureResponse(res, _maxElements) {
+function captureResponse(res: MCPToolResult, _maxElements: number): string {
   const content = res.content || []
   const text = content
     .filter((c) => c.type === 'text')
     .map((c) => c.text || '')
     .join('\n')
-  const summary = text.length > 6000
-    ? `${text.slice(0, 6000)}\n...(AX 树截断，total ${text.length} 字符——可提高 max_elements 或传 app 缩小范围)`
-    : text
+  const summary =
+    text.length > 6000
+      ? `${text.slice(0, 6000)}\n...(AX 树截断，total ${text.length} 字符——可提高 max_elements 或传 app 缩小范围)`
+      : text
   if (summary) return summary
   return JSON.stringify({ ok: true, message: 'capture 完成（无 AX 树——窗口可能无无障碍内容）' })
 }
 
-function maybeFollowCapture(client, res, captureAfter) {
+async function maybeFollowCapture(client: CuaDriverClient, res: MCPToolResult, captureAfter: boolean): Promise<string> {
   const base = clientExtractTextSafe(res)
   if (captureAfter) {
     return dispatch(client, 'capture', {})
@@ -388,14 +419,14 @@ function maybeFollowCapture(client, res, captureAfter) {
   return base
 }
 
-function coerceMaxElements(v) {
+function coerceMaxElements(v: unknown): number {
   const n = Number(v)
   if (Number.isFinite(n)) return Math.min(Math.max(Math.floor(n), 1), 1000)
   return 100
 }
 
 /** 解析 MCP 结果的 JSON 数组（list_apps/list_windows——cua-driver 返回文本 JSON） */
-function parseJsonArray(res) {
+function parseJsonArray(res: MCPToolResult): any[] {
   const text = clientExtractTextSafe(res)
   try {
     const parsed = JSON.parse(text)
@@ -409,12 +440,19 @@ function parseJsonArray(res) {
 }
 
 /** 工具内文本提取 */
-function clientExtractTextSafe(res) {
-  const parts = []
+function clientExtractTextSafe(res: MCPToolResult): string {
+  const parts: string[] = []
   for (const c of (res && res.content) || []) {
     if (c.type === 'text' && c.text) parts.push(c.text)
   }
   return parts.join('\n')
 }
 
-module.exports = { schema, execute }
+/** 错误信息提取（保持原 JS 的 (e && e.message) || String(e) 语义） */
+function errMsg(e: unknown): string {
+  if (e && typeof e === 'object' && 'message' in e) {
+    const m = (e as { message?: unknown }).message
+    if (m) return String(m)
+  }
+  return String(e)
+}

@@ -2,19 +2,27 @@
   "name": "tinkerdesk-tool-computer-use",
   "version": "0.0.1",
   "description": "TinkerDesk 外置工具：computer use——截屏 + 鼠标/键盘/拖拽 + 应用/浏览器自动化控制桌面（cua-driver）。完整工具形态（非 provider）",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "files": [
-    "index.js",
+    "dist/",
     "manifest.json",
-    "lib/",
     "install.md",
     "README.md"
   ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
   "keywords": [
     "tinkerdesk-tool",
     "computer-use",
     "desktop",
     "automation"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  }
 }

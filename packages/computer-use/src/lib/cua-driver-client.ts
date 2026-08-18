@@ -1,5 +1,5 @@
 /**
- * lib/cua-driver-client.js — cua-driver MCP 客户端（自包含 STDIO 实现）
+ * lib/cua-driver-client.ts — cua-driver MCP 客户端（自包含 STDIO 实现）
  *
  * 迁移自 tinkerdesk/src/main/tools/computer-use/cua-driver-client.ts
  * 原实现基于 tinkerdesk StdioTransport——此处将 MCP stdio JSON-RPC 2.0 传输内联为自包含实现，
@@ -12,22 +12,20 @@
  *   irm https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.ps1 | iex
  */
 
-'use strict'
-
-const { spawn } = require('node:child_process')
-const { randomUUID } = require('node:crypto')
-const { existsSync } = require('node:fs')
+import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 
 /** cua-driver 不可用 */
-class CuaDriverUnavailableError extends Error {
-  constructor(hint) {
+export class CuaDriverUnavailableError extends Error {
+  constructor(hint: string) {
     super(`cua-driver 不可用: ${hint}`)
     this.name = 'CuaDriverUnavailableError'
   }
 }
 
 /** 解析 cua-driver 可执行文件：PATH → 用户本地安装位置（Windows 官方安装目录） */
-function resolveCuaDriverCmd() {
+export function resolveCuaDriverCmd(): string | null {
   // 1. PATH
   const pathEnv = process.env.PATH || ''
   const sep = pathEnv.includes(';') ? ';' : ':'
@@ -51,37 +49,66 @@ function resolveCuaDriverCmd() {
   return null
 }
 
-function isWin() {
+function isWin(): boolean {
   return process.platform === 'win32'
+}
+
+/** MCP 文本内容块 */
+export interface MCPTextContent {
+  type: string
+  text?: string
+}
+
+/** MCP 工具调用结果（tools/call） */
+export interface MCPToolResult {
+  content: MCPTextContent[]
+  isError?: boolean
+}
+
+/** MCP 工具清单项 */
+export interface MCPToolInfo {
+  name: string
+  [key: string]: any
+}
+
+/** JSON-RPC 响应（宽松类型——不同 server 字段略有差异） */
+interface RpcResponse {
+  result?: any
+  error?: { message?: string } | null
+  content?: MCPTextContent[]
+  isError?: boolean
+}
+
+interface PendingRequest {
+  resolve: (value: any) => void
+  reject: (err: Error) => void
 }
 
 /**
  * 自包含 MCP stdio 传输（替代 tinkerdesk StdioTransport）
  * 通过 stdin/stdout 以 JSON-RPC 2.0 逐行通信，匹配 id 关联请求/响应。
  */
-class StdioTransport {
-  constructor() {
-    this.child = null
-    this.pending = new Map()
-    this.buffer = ''
-    this.idCounter = 0
-    this._connected = false
-  }
+export class StdioTransport {
+  child: ChildProcessWithoutNullStreams | null = null
+  pending: Map<number, PendingRequest> = new Map()
+  buffer = ''
+  idCounter = 0
+  private _connected = false
 
-  get connected() {
+  get connected(): boolean {
     return this._connected
   }
 
-  async connect(cmd, args) {
+  async connect(cmd: string, args: string[]): Promise<void> {
     if (!cmd) throw new Error('MCP stdio transport requires a command')
 
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] })
       this.child = child
 
       let started = false
 
-      child.stdout?.on('data', (data) => {
+      child.stdout.on('data', (data) => {
         this.buffer += data.toString()
         this.processBuffer()
         if (!started) {
@@ -91,7 +118,7 @@ class StdioTransport {
         }
       })
 
-      child.stderr?.on('data', () => {
+      child.stderr.on('data', () => {
         // MCP servers often log to stderr; ignore by default
       })
 
@@ -123,34 +150,35 @@ class StdioTransport {
     })
   }
 
-  async request(method, params) {
+  async request(method: string, params?: unknown): Promise<any> {
     if (!this.child || !this._connected) throw new Error('MCP not connected')
     const id = ++this.idCounter
     const req = { jsonrpc: '2.0', id, method, params }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<unknown>((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
-      this.child.stdin?.write(JSON.stringify(req) + '\n')
+      this.child!.stdin!.write(JSON.stringify(req) + '\n')
     }).then((res) => {
-      if (res.error) throw new Error(res.error.message || 'MCP error')
-      return res
+      const r = res as RpcResponse
+      if (r.error) throw new Error(r.error.message || 'MCP error')
+      return r
     })
   }
 
-  async listTools() {
+  async listTools(): Promise<MCPToolInfo[]> {
     const res = await this.request('tools/list')
     return (res.result && res.result.tools) || []
   }
 
-  async callTool(name, args) {
+  async callTool(name: string, args: unknown): Promise<MCPToolResult> {
     const res = await this.request('tools/call', { name, arguments: args })
     const result = (res.result && res.result) || {}
     return { content: result.content || [], isError: result.isError || false }
   }
 
-  close() {
+  close(): void {
     if (this.child) {
-      try { this.child.stdin?.end() } catch { /* ignore */ }
+      try { this.child.stdin.end() } catch { /* ignore */ }
       try { this.child.kill('SIGTERM') } catch { /* ignore */ }
       setTimeout(() => { try { this.child?.kill('SIGKILL') } catch { /* ignore */ } }, 3000)
       this.child = null
@@ -158,13 +186,13 @@ class StdioTransport {
     this._connected = false
   }
 
-  processBuffer() {
+  processBuffer(): void {
     const lines = this.buffer.split('\n')
     while (lines.length > 1) {
-      const line = lines.shift()
+      const line = lines.shift()!
       this.buffer = lines.join('\n')
       try {
-        const msg = JSON.parse(line)
+        const msg = JSON.parse(line) as any
         if (msg.id != null) {
           const pending = this.pending.get(msg.id)
           if (pending) {
@@ -180,20 +208,18 @@ class StdioTransport {
 }
 
 /** cua-driver MCP 客户端（Stdio 薄封装——每实例一个子进程 + 会话） */
-class CuaDriverClient {
-  constructor() {
-    this.transport = null
-    this.sessionId = null
-    this.toolNames = new Set()
-  }
+export class CuaDriverClient {
+  transport: StdioTransport | null = null
+  sessionId: string | null = null
+  toolNames: Set<string> = new Set()
 
   /** 检查 cua-driver 是否可用（PATH + 官方安装位置） */
-  static async isAvailable() {
+  static async isAvailable(): Promise<boolean> {
     return resolveCuaDriverCmd() !== null
   }
 
   /** 启动 cua-driver mcp 子进程 + 握手（initialize + tools/list） */
-  async start() {
+  async start(): Promise<void> {
     if (this.transport && this.transport.connected) return
     const cmd = resolveCuaDriverCmd()
     if (!cmd) {
@@ -209,7 +235,7 @@ class CuaDriverClient {
   }
 
   /** 开启 cua-driver 会话（start_session——后续 call_tool 自动带 session） */
-  async startSession() {
+  async startSession(): Promise<string> {
     const sid = `tinker-${randomUUID().slice(0, 8)}`
     await this.callRaw('start_session', { session: sid })
     this.sessionId = sid
@@ -217,7 +243,7 @@ class CuaDriverClient {
   }
 
   /** 结束会话 */
-  async endSession() {
+  async endSession(): Promise<void> {
     if (this.sessionId) {
       try {
         await this.callRaw('end_session', { session: this.sessionId })
@@ -229,8 +255,8 @@ class CuaDriverClient {
   }
 
   /** 调用 cua-driver 工具（自动合并 session 参数）——返回 { content, isError } */
-  async callTool(name, args) {
-    const merged = { ...(args || {}) }
+  async callTool(name: string, args: Record<string, any>): Promise<MCPToolResult> {
+    const merged: Record<string, any> = { ...(args || {}) }
     if (this.sessionId && name !== 'start_session' && name !== 'end_session') {
       merged.session = this.sessionId
     }
@@ -238,7 +264,7 @@ class CuaDriverClient {
   }
 
   /** 原始 tools/call（isError 时抛错） */
-  async callRaw(name, args) {
+  async callRaw(name: string, args: Record<string, any>): Promise<MCPToolResult> {
     if (!this.transport) throw new CuaDriverUnavailableError('cua-driver 未启动')
     const res = await this.transport.callTool(name, args || {})
     if (res.isError) {
@@ -249,8 +275,8 @@ class CuaDriverClient {
   }
 
   /** 从 MCP 结果提取文本（content 数组拼接） */
-  extractText(res) {
-    const parts = []
+  extractText(res: MCPToolResult): string {
+    const parts: string[] = []
     for (const c of res.content || []) {
       if (c.type === 'text' && c.text) parts.push(c.text)
     }
@@ -258,23 +284,16 @@ class CuaDriverClient {
   }
 
   /** 工具能力判断 */
-  hasTool(name) {
+  hasTool(name: string): boolean {
     return this.toolNames.has(name)
   }
 
   /** 关闭子进程 */
-  stop() {
+  stop(): void {
     this.sessionId = null
     if (this.transport) {
       try { this.transport.close() } catch { /* 已关闭 */ }
       this.transport = null
     }
   }
-}
-
-module.exports = {
-  CuaDriverClient,
-  CuaDriverUnavailableError,
-  resolveCuaDriverCmd,
-  StdioTransport,
 }

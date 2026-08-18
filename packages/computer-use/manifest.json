@@ -1,6 +1,6 @@
 {
   "id": "computer-use",
-  "entry": "index.js",
+  "entry": "dist/index.js",
   "apiVersion": 1,
   "kind": "tool",
   "tool": {
