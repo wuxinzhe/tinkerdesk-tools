@@ -25,7 +25,7 @@ npm run verify      # node verify.test.js（结构 + 校验层测试）
 ## 协议
 
 ```
-manifest: { id: "index-tts2", entry: "dist/index.js", apiVersion: 1, kind: "tool", tool: { name: "index_tts", ... } }
+manifest: { id: "index-tts2", entry: "dist/index.js", apiVersion: 1, type: "tool", tool: { name: "index_tts", ... } }
 dist/index.js: module.exports = { schema, execute }（tsc 编译输出）
 execute(toolCall) → { ok: true, output: { filePath, wavPath } } | { ok: false, error }
 ```
@@ -64,6 +64,6 @@ src/index.ts                  工具入口（schema + execute + 参数校验 + s
 src/lib/schema.ts             工具 schema + 常量（五语/8 情感/区间 clamp）+ 校验辅助
 dist/                         构建产物（tsc 编译——发布与加载入口 dist/index.js）
 tsconfig.json                 ES2022 + CommonJS + strict + declaration，outDir=dist
-manifest.json                 工具清单（kind: tool, tool.name: index_tts）
+manifest.json                 工具清单（type: tool, tool.name: index_tts）
 install.md                    IndexTTS 本机环境安装说明（python 检查 → 官方命令 → 版本跟随）
 ```

@@ -24,7 +24,7 @@ npm run build       # tsc -p tsconfig.json → dist/（ES2022 + CommonJS + stric
 ## 协议
 
 ```
-manifest: { id: "computer-use", entry: "dist/index.js", apiVersion: 1, kind: "tool", tool: { name: "computer_use", ... } }
+manifest: { id: "computer-use", entry: "dist/index.js", apiVersion: 1, type: "tool", tool: { name: "computer_use", ... } }
 dist/index.js: module.exports = { schema, execute }（tsc 编译输出）
 execute(toolCall) → { ok: boolean, output?: string, error?: string }
 ```

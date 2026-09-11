@@ -3,24 +3,7 @@
  */
 import type { MCPToolResult } from './lib/cua-driver-client'
 
-/** ToolSchema 兼容结构（JS 弱类型——与主程序 ToolSchema 结构一致即可，含 toFunctionCallingFormat） */
-export interface ToolSchemaCompatible {
-  name: string
-  description: string
-  parameters: Record<string, unknown> | null
-  toFunctionCallingFormat(): Record<string, unknown>
-}
-
-/** ToolResult 兼容结构（与主程序 ToolResult 含 { async, result }） */
-export interface ToolResultCompatible {
-  async: boolean
-  result: string
-}
-
-/** execute 入参（IAgentTool 的 ToolContext 兼容——取 toolCall.arguments） */
-export interface ToolCallContext {
-  toolCall?: { arguments?: Record<string, unknown> }
-}
+/** 工具契约（ToolSchema / ToolResult / ToolContext / IAgentTool）统一取自 tinkerdesk-types——不在本文件重抄 */
 
 /** execute 入参（宽松任意字段） */
 export interface ToolCallArgumentBag {

@@ -30,19 +30,13 @@ import {
   clampDurationFactor,
   clampEmoAlpha,
 } from './lib/schema'
-import type {
-  ActionResult,
-  EnvConfig,
-  ToolCall,
-  ToolCallContext,
-  ToolResultCompatible,
-  ToolSchemaCompatible,
-} from './types'
+import type { ActionResult, EnvConfig, ToolCall } from './types'
+import type { IAgentTool, ToolContext, ToolResult, ToolSchema } from 'tinkerdesk-types'
 
-/** index_tts 外置工具 */
-export class IndexTTS {
-  /** IAgentTool：getSchema——返回 ToolSchema 兼容结构（含 toFunctionCallingFormat） */
-  getSchema(): ToolSchemaCompatible {
+/** index_tts 外置工具（实现发布契约 IAgentTool——见 tinkerdesk-types） */
+export class IndexTTS implements IAgentTool {
+  /** IAgentTool：getSchema */
+  getSchema(): ToolSchema {
     return {
       name: schema.name,
       description: schema.description,
@@ -61,9 +55,9 @@ export class IndexTTS {
     return true
   }
 
-  /** IAgentTool：execute——返回 ToolResult 兼容结构 { async, result } */
-  async execute(ctx: ToolCallContext): Promise<ToolResultCompatible> {
-    const r = await IndexTTS.run({ arguments: ctx?.toolCall?.arguments ?? {} })
+  /** IAgentTool：execute——入参 = 平台 ToolContext，返回 { async, result } */
+  async execute(ctx: ToolContext): Promise<ToolResult> {
+    const r = await IndexTTS.run({ arguments: ctx.toolCall.arguments ?? {} })
     if (r.ok === false) {
       return { async: false, result: JSON.stringify({ error: r.error ?? '工具执行失败' }) }
     }

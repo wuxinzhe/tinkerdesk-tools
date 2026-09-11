@@ -17,21 +17,13 @@ import {
   canonKeyCombo,
   blockedTypePattern,
 } from './lib/schema'
-import type {
-  ActionResult,
-  MCPToolResult,
-  ToolCall,
-  ToolCallArgumentBag,
-  ToolCallContext,
-  ToolResultCompatible,
-  ToolSchemaCompatible,
-  WindowInfo,
-} from './types'
+import type { ActionResult, MCPToolResult, ToolCall, ToolCallArgumentBag, WindowInfo } from './types'
+import type { IAgentTool, ToolContext, ToolResult, ToolSchema } from 'tinkerdesk-types'
 
-/** computer_use 外置工具 */
-export class ComputerUse {
-  /** IAgentTool：getSchema——返回 ToolSchema 兼容结构（含 toFunctionCallingFormat） */
-  getSchema(): ToolSchemaCompatible {
+/** computer_use 外置工具（实现发布契约 IAgentTool——见 tinkerdesk-types） */
+export class ComputerUse implements IAgentTool {
+  /** IAgentTool：getSchema */
+  getSchema(): ToolSchema {
     const s = ComputerUse.SCHEMA
     return {
       name: s.name,
@@ -51,9 +43,9 @@ export class ComputerUse {
     return true
   }
 
-  /** IAgentTool：execute——返回 ToolResult 兼容结构 { async, result } */
-  async execute(ctx: ToolCallContext): Promise<ToolResultCompatible> {
-    const r = await ComputerUse.run({ arguments: ctx?.toolCall?.arguments ?? {} })
+  /** IAgentTool：execute——入参 = 平台 ToolContext，返回 { async, result } */
+  async execute(ctx: ToolContext): Promise<ToolResult> {
+    const r = await ComputerUse.run({ arguments: ctx.toolCall.arguments ?? {} })
     if (r.ok === false) {
       return { async: false, result: JSON.stringify({ error: r.error ?? '工具执行失败', hint: r.hint }) }
     }
