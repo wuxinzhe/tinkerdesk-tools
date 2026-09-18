@@ -2,6 +2,7 @@
   "id": "index-tts2",
   "entry": "dist/index.js",
   "apiVersion": 1,
+  "version": "0.0.1",
   "type": "tool",
   "tool": {
     "name": "index_tts",

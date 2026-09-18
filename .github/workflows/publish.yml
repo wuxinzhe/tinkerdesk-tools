@@ -47,8 +47,33 @@ jobs:
               NEW=$(node -e "const s='$LATEST'.split('.').map(Number); console.log([s[0],s[1],(s[2]||0)+1].join('.'))") && \
               CUR=$(node -p "require('./package.json').version") && \
               if [ "$NEW" != "$CUR" ]; then npm version "$NEW" --no-git-tag-version; fi && \
-              echo "   → $NAME@$(node -p "require('./package.json').version")")
+              # 同步 manifest.json version（工具中心读 manifest 不是 package.json）
+              if [ -f manifest.json ]; then
+                node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('manifest.json'));m.version='$NEW';fs.writeFileSync('manifest.json',JSON.stringify(m,null,2)+'\n')" && \
+                echo "   → manifest.json version 同步为 $NEW"
+              fi && \
+              echo "   → $NAME@$NEW")
           done < /tmp/changed.txt
+
+      # 一致性校验：发布前确保每个变更包 package.json.version == manifest.json.version
+      - name: Verify manifest version sync
+        run: |
+          if [ ! -s /tmp/changed.txt ]; then exit 0; fi
+          FAIL=0
+          while read -r pkg; do
+            [ -z "$pkg" ] && continue
+            [ -f "packages/$pkg/package.json" ] || continue
+            [ -f "packages/$pkg/manifest.json" ] || continue
+            PV=$(node -p "require('./packages/$pkg/package.json').version")
+            MV=$(node -p "require('./packages/$pkg/manifest.json').version")
+            if [ "$PV" != "$MV" ]; then
+              echo "❌ $pkg: package.json=$PV vs manifest.json=$MV 不一致"
+              FAIL=1
+            else
+              echo "✅ $pkg: $PV 一致"
+            fi
+          done < /tmp/changed.txt
+          [ "$FAIL" = "0" ] || { echo "版本不一致——请修复后重试"; exit 1; }
 
       # 装依赖（TS 包 prepublishOnly 需要 tsc——workspaces 根安装）
       - name: Install dependencies
